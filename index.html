@@ -1,1 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Rusty Gate – Meal Voucher Scanner</title>
+
+  <!-- Web App Manifest for PWA install prompt -->
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+  <style>
+    body { margin: 1rem; font-family: sans-serif; text-align: center; }
+    #reader { width: 100%; max-width: 400px; margin: auto; height: 300px; }
+    #status { margin-top: 1rem; font-size: 1.2em; }
+    #manualCode { width: 80%; padding: 0.5rem; font-size: 1rem; }
+    #manualButton { padding: 0.5rem 1rem; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <h2>Scan or Enter Voucher Key</h2>
+  <div id="reader"></div>
+  <p>OR paste the code</p>
+  <input type="text" id="manualCode" placeholder="eg. RGC2025-1825-003" autocomplete="off" /><br>
+  <button id="manualButton">Validate</button>
+  <div id="status" role="status">Waiting…</div>
+
+  <!-- Include html5-qrcode scanner library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+
+  <script>
+  const SCRIPT_ENDPOINT = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+
+  // Helper to show messages
+  function setStatus(msg, color) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    if (color) el.style.color = color;
+  }
+
+  // Validate function to send voucher key to Apps Script
+  async function validate(code) {
+    setStatus('⏳ validating…', 'black');
+    try {
+      const resp = await fetch(SCRIPT_ENDPOINT + '?voucher=' + encodeURIComponent(code));
+      const { result, message } = await resp.json();
+      if (result === 'OK') {
+        setStatus('✅ VALID – Thanks!', 'green');
+      } else {
+        setStatus('❌ ' + (message || 'Invalid or used'), 'red');
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus('⚠️ Network error', 'red');
+    }
+  }
+
+  // Initialize camera scan using html5-qrcode
+  function onScanSuccess(decodedText) {
+    html5QrcodeScanner.clear();
+    validate(decodedText.trim());
+  }
+
+  const html5QrcodeScanner = new Html5QrcodeScanner(
+    'reader',
+    {
+      fps: 10,
+      qrbox: { width: 240, height: 240 },
+      rememberLastUsedCamera: true,
+      supportedScanTypes: [
+         Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+         Html5QrcodeScanType.SCAN_TYPE_FILE
+      ]
+    },
+    false
+  );
+  html5QrcodeScanner.render(onScanSuccess, err => {});
+
+  // Manual entry handler
+  document.getElementById('manualButton').onclick = () => {
+    const code = document.getElementById('manualCode').value;
+    if (!code) {
+      setStatus('Please enter voucher key', 'red');
+      return;
+    }
+    html5QrcodeScanner.clear();
+    validate(code.trim());
+  };
+
+  // Register service worker for offline support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/service-worker.js')
+        .then(() => console.log('SW registered'))
+        .catch(e => console.warn('SW failed', e));
+    });
+  }
+  </script>
+</body>
+</html>
 
