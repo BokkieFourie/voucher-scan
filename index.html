@@ -8,28 +8,51 @@
         text-align: center;
         margin-top: 80px;
       }
-      input {
-        width: 60%;
-        padding: 10px;
+      input, button {
         font-size: 16px;
-      }
-      button {
-        margin-top: 10px;
-        padding: 10px 20px;
-        font-size: 18px;
+        padding: 10px;
+        margin: 5px;
       }
       #response {
         margin-top: 20px;
         font-weight: bold;
       }
+      #loginModal {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      #loginBox {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        width: 300px;
+      }
     </style>
   </head>
+
   <body>
     <h2>Meal Voucher Redemption</h2>
     <div id="operatorDisplay"></div>
-    <br>
+
+    <div id="loginModal">
+      <div id="loginBox">
+        <h3>Enter Operator Name</h3>
+        <input type="text" id="firstName" placeholder="First Name" /><br />
+        <input type="text" id="lastName" placeholder="Last Name" /><br />
+        <button onclick="submitLogin()">Login</button>
+      </div>
+    </div>
+
+    <br />
     <input type="text" id="voucherInput" placeholder="Enter or scan voucher code" autofocus />
-    <br>
+    <br />
     <button onclick="validateVoucher()">Validate Voucher</button>
     <div id="response"></div>
 
@@ -37,17 +60,41 @@
       const endpoint = "https://script.google.com/macros/s/AKfycbzoiMeh_L-sI7bhdg05R8Yf7jMQVKVhcv2Ntux5dlxaeOB--1VEdS0WHLtU2kTaqjDxKA/exec";
       let operator = "";
 
-      window.onload = function () {
-        operator = sessionStorage.getItem("operatorName") || prompt("Enter your name (First Last):") || "Unknown";
+      function formatName(name) {
+        return name.replace(/\b\w/g, c => c.toUpperCase()).trim();
+      }
+
+      function submitLogin() {
+        const fName = document.getElementById("firstName").value.trim();
+        const lName = document.getElementById("lastName").value.trim();
+
+        if (!fName || !lName) {
+          alert("Please enter both first and last name.");
+          return;
+        }
+
+        operator = `${formatName(fName)} ${formatName(lName)}`;
         sessionStorage.setItem("operatorName", operator);
         document.getElementById("operatorDisplay").innerText = "Logged in as: " + operator;
+        document.getElementById("loginModal").style.display = "none";
+        document.getElementById("voucherInput").focus();
+      }
+
+      window.onload = function () {
+        const stored = sessionStorage.getItem("operatorName");
+        if (stored) {
+          operator = stored;
+          document.getElementById("operatorDisplay").innerText = "Logged in as: " + operator;
+          document.getElementById("loginModal").style.display = "none";
+        }
       };
 
       function validateVoucher() {
         const voucher = document.getElementById("voucherInput").value.trim();
+        const responseBox = document.getElementById("response");
+
         if (!voucher) return;
 
-        const responseBox = document.getElementById("response");
         responseBox.innerHTML = "Validating…";
         responseBox.style.color = "black";
 
