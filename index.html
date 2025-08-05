@@ -2,99 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Rusty Gate – Meal Voucher Scanner</title>
-
-  <!-- Web App Manifest for PWA install prompt -->
-  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Meal Voucher Redemption</title>
   <style>
-    body { margin: 1rem; font-family: sans-serif; text-align: center; }
-    #reader { width: 100%; max-width: 400px; margin: auto; height: 300px; }
-    #status { margin-top: 1rem; font-size: 1.2em; }
-    #manualCode { width: 80%; padding: 0.5rem; font-size: 1rem; }
-    #manualButton { padding: 0.5rem 1rem; font-size: 1rem; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      max-width: 500px;
+      margin: auto;
+      text-align: center;
+    }
+    input, button {
+      padding: 0.8rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      font-size: 1.1rem;
+    }
+    .hidden { display: none; }
+    .status { font-weight: bold; margin-top: 1rem; }
+    .success { color: green; }
+    .warning { color: orange; }
+    .error { color: red; }
   </style>
 </head>
 <body>
-  <h2>Scan or Enter Voucher Key</h2>
-  <div id="reader"></div>
-  <p>OR paste the code</p>
-  <input type="text" id="manualCode" placeholder="eg. RGC2025-1825-003" autocomplete="off" /><br>
-  <button id="manualButton">Validate</button>
-  <div id="status" role="status">Waiting…</div>
+  <h2>Meal Voucher Redemption</h2>
 
-  <!-- Include html5-qrcode scanner library -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <div id="login-panel">
+    <p><strong>Operator Login</strong></p>
+    <input type="text" id="first-name" placeholder="First Name" maxlength="30" required pattern="[a-zA-Z\-'\s]+" />
+    <input type="text" id="last-name" placeholder="Last Name" maxlength="40" required pattern="[a-zA-Z\-'\s]+" />
+    <button onclick="submitLogin()">Login</button>
+  </div>
+
+  <div id="scanner-panel" class="hidden">
+    <p id="operator-display"></p>
+    <input type="text" id="voucher-input" placeholder="Enter or scan voucher code" />
+    <button onclick="submitVoucher()">Validate Voucher</button>
+    <div id="result" class="status"></div>
+  </div>
 
   <script>
-  const SCRIPT_ENDPOINT = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+    const endpoint = "https://script.google.com/macros/s/AKfycbw94eYQ_gARUQLd8jm7mjvlYwFfVxt59TQMI5rrl2deWqUmj46LpEQ7CLIVYHdzhE_TOQ/exec"; // <- Replace this!
 
-  // Helper to show messages
-  function setStatus(msg, color) {
-    const el = document.getElementById('status');
-    el.textContent = msg;
-    if (color) el.style.color = color;
-  }
-
-  // Validate function to send voucher key to Apps Script
-  async function validate(code) {
-    setStatus('⏳ validating…', 'black');
-    try {
-      const resp = await fetch(SCRIPT_ENDPOINT + '?voucher=' + encodeURIComponent(code));
-      const { result, message } = await resp.json();
-      if (result === 'OK') {
-        setStatus('✅ VALID – Thanks!', 'green');
-      } else {
-        setStatus('❌ ' + (message || 'Invalid or used'), 'red');
-      }
-    } catch (e) {
-      console.error(e);
-      setStatus('⚠️ Network error', 'red');
+    function formatName(name) {
+      return name.trim().toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
     }
-  }
 
-  // Initialize camera scan using html5-qrcode
-  function onScanSuccess(decodedText) {
-    html5QrcodeScanner.clear();
-    validate(decodedText.trim());
-  }
+    function submitLogin() {
+      const firstName = formatName(document.getElementById('first-name').value);
+      const lastName = formatName(document.getElementById('last-name').value);
+      if (!firstName || !lastName) return alert("Please enter both names.");
 
-  const html5QrcodeScanner = new Html5QrcodeScanner(
-    'reader',
-    {
-      fps: 10,
-      qrbox: { width: 240, height: 240 },
-      rememberLastUsedCamera: true,
-      supportedScanTypes: [
-         Html5QrcodeScanType.SCAN_TYPE_CAMERA,
-         Html5QrcodeScanType.SCAN_TYPE_FILE
-      ]
-    },
-    false
-  );
-  html5QrcodeScanner.render(onScanSuccess, err => {});
-
-  // Manual entry handler
-  document.getElementById('manualButton').onclick = () => {
-    const code = document.getElementById('manualCode').value;
-    if (!code) {
-      setStatus('Please enter voucher key', 'red');
-      return;
+      const fullName = `${firstName} ${lastName}`;
+      localStorage.setItem('operatorName', fullName);
+      showScannerPanel(fullName);
     }
-    html5QrcodeScanner.clear();
-    validate(code.trim());
-  };
 
-  // Register service worker for offline support
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('/service-worker.js')
-        .then(() => console.log('SW registered'))
-        .catch(e => console.warn('SW failed', e));
-    });
-  }
+    function showScannerPanel(name) {
+      document.getElementById('login-panel').classList.add('hidden');
+      document.getElementById('scanner-panel').classList.remove('hidden');
+      document.getElementById('operator-display').textContent = `Logged in as: ${name}`;
+    }
+
+    function submitVoucher() {
+      const voucherKey = document.getElementById('voucher-input').value.trim();
+      const operator = localStorage.getItem('operatorName') || "Unknown";
+
+      if (!voucherKey) return alert("Please enter a voucher code.");
+
+      const payload = {
+        voucherKey,
+        operator,
+        source: "Manual"
+      };
+
+      fetch(endpoint, {
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        const msg = data.result || "No response";
+        const resultEl = document.getElementById('result');
+        resultEl.textContent = msg;
+
+        resultEl.className = "status";
+        if (msg === "Redeemed") resultEl.classList.add("success");
+        else if (msg === "Already Redeemed") resultEl.classList.add("warning");
+        else resultEl.classList.add("error");
+
+        document.getElementById('voucher-input').value = "";
+      })
+      .catch(err => {
+        const resultEl = document.getElementById('result');
+        resultEl.textContent = "Error communicating with server.";
+        resultEl.className = "status error";
+        console.error(err);
+      });
+    }
+
+    // Auto-load if already logged in
+    const savedName = localStorage.getItem('operatorName');
+    if (savedName) showScannerPanel(savedName);
   </script>
 </body>
 </html>
-
