@@ -1,117 +1,89 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Meal Voucher Redemption</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      max-width: 500px;
-      margin: auto;
-      text-align: center;
-    }
-    input, button {
-      padding: 0.8rem;
-      margin: 0.5rem 0;
-      width: 100%;
-      font-size: 1.1rem;
-    }
-    .hidden { display: none; }
-    .status {
-      font-weight: bold;
-      margin-top: 1rem;
-      min-height: 2rem;
-    }
-    .success { color: green; }
-    .warning { color: orange; }
-    .error { color: red; }
-  </style>
-</head>
-<body>
-  <h2>Meal Voucher Redemption</h2>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin-top: 80px;
+      }
+      input {
+        width: 60%;
+        padding: 10px;
+        font-size: 16px;
+      }
+      button {
+        margin-top: 10px;
+        padding: 10px 20px;
+        font-size: 18px;
+      }
+      #response {
+        margin-top: 20px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Meal Voucher Redemption</h2>
+    <div id="operatorDisplay"></div>
+    <br>
+    <input type="text" id="voucherInput" placeholder="Enter or scan voucher code" autofocus />
+    <br>
+    <button onclick="validateVoucher()">Validate Voucher</button>
+    <div id="response"></div>
 
-  <div id="login-panel">
-    <p><strong>Operator Login</strong></p>
-    <input type="text" id="first-name" placeholder="First Name" maxlength="30" required pattern="[a-zA-Z\-'\s]+" />
-    <input type="text" id="last-name" placeholder="Last Name" maxlength="40" required pattern="[a-zA-Z\-'\s]+" />
-    <button onclick="submitLogin()">Login</button>
-  </div>
+    <script>
+      const endpoint = "https://script.google.com/macros/s/AKfycbw94eYQ_gARUQLd8jm7mjvlYwFfVxt59TQMI5rrl2deWqUmj46LpEQ7CLIVYHdzhE_TOQ/exec";
+      let operator = "";
 
-  <div id="scanner-panel" class="hidden">
-    <p id="operator-display"></p>
-    <input type="text" id="voucher-input" placeholder="Enter or scan voucher code" />
-    <button onclick="submitVoucher()">Validate Voucher</button>
-    <div id="result" class="status"></div>
-  </div>
-
-  <script>
-    const endpoint = "https://script.google.com/macros/s/AKfycbw94eYQ_gARUQLd8jm7mjvlYwFfVxt59TQMI5rrl2deWqUmj46LpEQ7CLIVYHdzhE_TOQ/exec"; // your Web App URL
-
-    function formatName(name) {
-      return name.trim().toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
-    }
-
-    function submitLogin() {
-      const firstName = formatName(document.getElementById('first-name').value);
-      const lastName = formatName(document.getElementById('last-name').value);
-      if (!firstName || !lastName) return alert("Please enter both names.");
-
-      const fullName = `${firstName} ${lastName}`;
-      localStorage.setItem('operatorName', fullName);
-      showScannerPanel(fullName);
-    }
-
-    function showScannerPanel(name) {
-      document.getElementById('login-panel').classList.add('hidden');
-      document.getElementById('scanner-panel').classList.remove('hidden');
-      document.getElementById('operator-display').textContent = `Logged in as: ${name}`;
-    }
-
-    function submitVoucher() {
-      const voucherKey = document.getElementById('voucher-input').value.trim();
-      const operator = localStorage.getItem('operatorName') || "Unknown";
-      const resultEl = document.getElementById('result');
-
-      if (!voucherKey) return alert("Please enter a voucher code.");
-
-      // Show processing
-      resultEl.className = "status";
-      resultEl.textContent = "Validating...";
-
-      const payload = {
-        voucherKey,
-        operator,
-        source: "Manual"
+      window.onload = function () {
+        operator = sessionStorage.getItem("operatorName") || prompt("Enter your name (First Last):") || "Unknown";
+        sessionStorage.setItem("operatorName", operator);
+        document.getElementById("operatorDisplay").innerText = "Logged in as: " + operator;
       };
 
-      fetch(endpoint, {
-        method: "POST",
-        contentType: "application/json",
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.json())
-      .then(data => {
-        const msg = data.result || "No response";
-        resultEl.textContent = msg;
+      function validateVoucher() {
+        const voucher = document.getElementById("voucherInput").value.trim();
+        if (!voucher) return;
 
-        if (msg === "Redeemed") resultEl.classList.add("success");
-        else if (msg === "Already Redeemed") resultEl.classList.add("warning");
-        else resultEl.classList.add("error");
+        const responseBox = document.getElementById("response");
+        responseBox.innerHTML = "Validating…";
+        responseBox.style.color = "black";
 
-        document.getElementById('voucher-input').value = "";
-      })
-      .catch(err => {
-        resultEl.textContent = "Error communicating with server.";
-        resultEl.className = "status error";
-        console.error(err);
-      });
-    }
+        fetch(endpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            voucherKey: voucher,
+            operator: operator,
+            source: "web"
+          }),
+          headers: { "Content-Type": "application/json" }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.result === "Redeemed") {
+              responseBox.innerHTML = "Voucher Redeemed";
+              responseBox.style.color = "green";
+            } else if (data.result === "Already Redeemed") {
+              responseBox.innerHTML = "Already Redeemed";
+              responseBox.style.color = "orange";
+            } else if (data.result === "ERROR") {
+              responseBox.innerHTML = "ERROR: " + (data.message || "Unknown issue");
+              responseBox.style.color = "red";
+            } else {
+              responseBox.innerHTML = "Invalid Voucher";
+              responseBox.style.color = "gray";
+            }
 
-    // Auto-login if previously saved
-    const savedName = localStorage.getItem('operatorName');
-    if (savedName) showScannerPanel(savedName);
-  </script>
-</body>
+            document.getElementById("voucherInput").value = "";
+            document.getElementById("voucherInput").focus();
+          })
+          .catch(error => {
+            responseBox.innerHTML = "Fetch ERROR: " + error.message;
+            responseBox.style.color = "red";
+          });
+      }
+    </script>
+  </body>
 </html>
