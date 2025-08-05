@@ -61,7 +61,10 @@
       let operator = "";
 
       function formatName(name) {
-        return name.replace(/\b\w/g, c => c.toUpperCase()).trim();
+        return name
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
       }
 
       function submitLogin() {
